@@ -15,9 +15,8 @@ pipeline {
 
         stage('Checkout') {
             steps { 
-                   gitbranch: 'main',
-                git 'https://github.com/vijayabalakrishnak/OTT.git'
-            }
+                  git branch: 'main',
+    url: 'https://github.com/vijayabalakrishnak/OTT.git'
         }
 
         stage('Build') {
