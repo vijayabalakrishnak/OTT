@@ -2,96 +2,73 @@ pipeline {
     agent any
 
     tools {
-        maven 'Maven3'   // Name must match a Maven installation configured in Jenkins > Global Tool Configuration
-        jdk 'JDK17'      // Name must match a JDK installation configured in Jenkins > Global Tool Configuration
+        maven 'Maven'
     }
 
     environment {
-        // Change these to match your own Docker Hub / registry account
-        DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials') // Jenkins credential ID (username/password)
-        DOCKER_IMAGE           = "yourdockerhubusername/ott-platform"
-        IMAGE_TAG              = "${env.BUILD_NUMBER}"
-    }
-
-    options {
-        timestamps()
-        buildDiscarder(logRotator(numToKeepStr: '10'))
+        IMAGE_NAME = "kvbkrishna/ott-platform"
+        IMAGE_TAG = "latest"
     }
 
     stages {
 
         stage('Checkout') {
             steps {
-                echo 'Checking out source code...'
-                checkout scm
+                git 'https://github.com/vijayabalakrishnak/OTT.git'
             }
         }
 
         stage('Build') {
             steps {
-                echo 'Building with Maven...'
-                sh 'mvn -B clean compile'
+                sh 'mvn clean compile'
             }
         }
 
         stage('Test') {
             steps {
-                echo 'Running unit tests...'
-                sh 'mvn -B test'
-            }
-            post {
-                always {
-                    junit '**/target/surefire-reports/*.xml'
-                }
+                sh 'mvn test'
             }
         }
 
         stage('Package') {
             steps {
-                echo 'Packaging application as JAR...'
-                sh 'mvn -B package -DskipTests'
-            }
-            post {
-                success {
-                    archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
-                }
+                sh 'mvn package'
             }
         }
 
         stage('Docker Build') {
             steps {
-                echo 'Building Docker image...'
-                sh "docker build -t ${DOCKER_IMAGE}:${IMAGE_TAG} -t ${DOCKER_IMAGE}:latest ."
+                sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
             }
         }
 
         stage('Docker Push') {
             steps {
-                echo 'Pushing Docker image to registry...'
-                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
-                sh "docker push ${DOCKER_IMAGE}:${IMAGE_TAG}"
-                sh "docker push ${DOCKER_IMAGE}:latest"
+                withCredentials([usernamePassword(
+                    credentialsId: 'dockerhub-creds',
+                    usernameVariable: 'DOCKER_USER',
+                    passwordVariable: 'DOCKER_PASS'
+                )]) {
+                    sh '''
+                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                        docker push $IMAGE_NAME:$IMAGE_TAG
+                    '''
+                }
             }
         }
 
         stage('Deploy') {
             steps {
-                echo 'Deploying with docker-compose...'
-                sh 'docker compose down || true'
-                sh 'docker compose up -d --build'
-            }
-        }
-    }
+                sh '''
+                docker rm -f ott-platform || true
 
-    post {
-        success {
-            echo 'Pipeline completed successfully!'
-        }
-        failure {
-            echo 'Pipeline failed. Check the logs above.'
-        }
-        always {
-            sh 'docker logout || true'
+                docker run -d \
+                  --name ott-platform \
+                  -p 8082:8080 \
+                  -e SPRING_PROFILES_ACTIVE=local \
+                  $IMAGE_NAME:$IMAGE_TAG
+                '''
+            }
         }
     }
 }
