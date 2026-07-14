@@ -2,14 +2,12 @@ pipeline {
     agent any
 
     tools {
-        tools {
-    maven 'Maven3'
-}
+        maven 'Maven3'
     }
 
     environment {
-        IMAGE_NAME = "kvbkrishna/ott-platform"
-        IMAGE_TAG = "latest"
+        IMAGE_NAME = 'kvbkrishna/ott-platform'
+        IMAGE_TAG = 'latest'
     }
 
     stages {
@@ -34,7 +32,7 @@ pipeline {
 
         stage('Package') {
             steps {
-                sh 'mvn package'
+                sh 'mvn clean package'
             }
         }
 
@@ -46,30 +44,13 @@ pipeline {
 
         stage('Docker Push') {
             steps {
-                withCredentials([usernamePassword(
-                    credentialsId: 'dockerhub-creds',
-                    usernameVariable: 'DOCKER_USER',
-                    passwordVariable: 'DOCKER_PASS'
-                )]) {
-                    sh '''
-                        echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                        docker push $IMAGE_NAME:$IMAGE_TAG
-                    '''
-                }
+                echo 'Docker Push Stage'
             }
         }
 
         stage('Deploy') {
             steps {
-                sh '''
-                docker rm -f ott-platform || true
-
-                docker run -d \
-                  --name ott-platform \
-                  -p 8082:8080 \
-                  -e SPRING_PROFILES_ACTIVE=local \
-                  $IMAGE_NAME:$IMAGE_TAG
-                '''
+                echo 'Deploy Stage'
             }
         }
     }
