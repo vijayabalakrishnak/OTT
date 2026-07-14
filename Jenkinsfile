@@ -52,21 +52,27 @@ pipeline {
         }
 
         stage('Run Docker Container') {
-            steps {
-                sh '''
-                docker run -d \
-                --name ${CONTAINER_NAME} \
-                -p 8091:8080 \
-                ${IMAGE_NAME}:latest
-                '''
-            }
-        }
+    steps {
+        sh '''
+        docker rm -f ${CONTAINER_NAME} || true
 
-        stage('Verify Application') {
-            steps {
-                sh 'curl http://localhost:8091/actuator/health'
-            }
-        }
+        docker run -d \
+        --name ${CONTAINER_NAME} \
+        -p 8091:8090 \
+        ${IMAGE_NAME}:latest
+        '''
+    }
+}
+
+         stage('Verify Application') {
+    steps {
+        sh '''
+        echo "Waiting for application to start..."
+        sleep 10
+        curl -f http://localhost:8091/actuator/health
+        '''
+    }
+}
     }
 
     post {
