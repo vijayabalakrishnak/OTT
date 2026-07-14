@@ -1,30 +1,9 @@
-# ---------- Stage 1: Build ----------
-FROM maven:3.9-eclipse-temurin-17 AS build
+FROM eclipse-temurin:17-jdk
+
 WORKDIR /app
 
-# Copy pom.xml first to leverage Docker layer caching for dependencies
-COPY pom.xml .
-RUN mvn -B dependency:go-offline
+COPY target/ott-platform.jar app.jar
 
-# Copy source and build the jar (skip tests here; Jenkins runs them in the Test stage)
-COPY src ./src
-RUN mvn -B clean package -DskipTests
+EXPOSE 8090
 
-# ---------- Stage 2: Run ----------
-FROM eclipse-temurin:17-jre-jammy
-WORKDIR /app
-
-# Run as non-root user for better container security
-RUN groupadd -r ottapp && useradd -r -g ottapp ottapp
-
-COPY --from=build /app/target/ott-platform.jar app.jar
-
-RUN chown -R ottapp:ottapp /app
-USER ottapp
-
-EXPOSE 8080
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD wget -qO- http://localhost:8080/api/ping || exit 1
-
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["java","-jar","app.jar"]
