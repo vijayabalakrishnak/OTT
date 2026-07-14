@@ -2,30 +2,30 @@ pipeline {
     agent any
 
     tools {
-    maven 'Maven3'
+        maven 'Maven3'
     }
 
     environment {
         IMAGE_NAME = "ott-platform"
-        IMAGE_TAG = "latest"
-        SPRING_PROFILES_ACTIVE = "local"
+        CONTAINER_NAME = "ott-app"
     }
 
     stages {
 
         stage('Checkout') {
-            steps { 
-                  git branch: 'main',
-    url: 'https://github.com/vijayabalakrishnak/OTT.git'
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/vijayabalakrishnak/OTT.git'
+            }
         }
 
-        stage('Build') {
+        stage('Compile') {
             steps {
                 sh 'mvn clean compile'
             }
         }
 
-        stage('Test') {
+        stage('Unit Test') {
             steps {
                 sh 'mvn test'
             }
@@ -33,36 +33,53 @@ pipeline {
 
         stage('Package') {
             steps {
-                sh 'mvn package'
+                sh 'mvn clean package -DskipTests'
             }
         }
 
-        stage('Docker Build') {
+        stage('Build Docker Image') {
             steps {
-                sh 'docker build -t ${IMAGE_NAME}:${IMAGE_TAG} .'
+                sh 'docker build -t ${IMAGE_NAME}:latest .'
             }
         }
 
-        stage('Docker Push') {
+        stage('Remove Old Container') {
             steps {
                 sh '''
-                docker tag ${IMAGE_NAME}:${IMAGE_TAG} <dockerhub-username>/${IMAGE_NAME}:${IMAGE_TAG}
-                docker push <dockerhub-username>/${IMAGE_NAME}:${IMAGE_TAG}
+                docker rm -f ${CONTAINER_NAME} || true
                 '''
             }
         }
 
-        stage('Deploy') {
+        stage('Run Docker Container') {
             steps {
                 sh '''
-                docker rm -f ott-app || true
                 docker run -d \
-                --name ott-app \
-                -p 8080:8080 \
-                -e SPRING_PROFILES_ACTIVE=local \
-                ${IMAGE_NAME}:${IMAGE_TAG}
+                --name ${CONTAINER_NAME} \
+                -p 8091:8080 \
+                ${IMAGE_NAME}:latest
                 '''
             }
+        }
+
+        stage('Verify Application') {
+            steps {
+                sh 'curl http://localhost:8091/actuator/health'
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline completed successfully!'
+        }
+
+        failure {
+            echo 'Pipeline failed.'
+        }
+
+        always {
+            echo 'Pipeline execution finished.'
         }
     }
 }
